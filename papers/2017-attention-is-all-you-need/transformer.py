@@ -75,6 +75,23 @@ class MultiHeadAttention(nn.Module):
         return y
 
 
+class Feedforward(nn.Module):
+    def __init__(self, d_model: int, d_ff: int):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.ReLU(),
+            nn.Linear(d_ff, d_model),
+        )
+
+    def forward(self, x):
+        """
+        input dimension x: (batch_size, seq_len, d_model)
+        output dimension: (batch_size, seq_len, d_model)
+        """
+        return self.net(x)
+
+
 class PositionalEncoding(nn.Module):
     """Implements the positional encodings as described in the paper
     "Attention is All You Need" (Vaswani et al., 2017).
@@ -98,6 +115,20 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, : x.size(1)]
 
 
+class EncoderLayer(nn.Module):
+    def __init__(self, d_model, num_heads, d_ff):
+        super().__init__()
+        self.attn = MultiHeadAttention(d_model, num_heads)
+        # self.ff
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+    def forward(self, x, mask=None):
+        x = self.norm1(x + self.attn(x, mask))
+        x = self.norm2(x + self.ff(x))
+        return x
+
+
 class TransformerEncoder(nn.Module):
     def __init__(
         self,
@@ -108,6 +139,7 @@ class TransformerEncoder(nn.Module):
         num_layers: int,
         max_len=512,
     ):
+        super().__init__()
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_enc = PositionalEncoding(d_model, max_len)
         self.layers = []
@@ -131,6 +163,7 @@ class TransformerDecoder(nn.Module):
         num_layers: int,
         max_len=512,
     ):
+        super().__init__()
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_enc = PositionalEncoding(d_model, max_len)
         self.layers = []
