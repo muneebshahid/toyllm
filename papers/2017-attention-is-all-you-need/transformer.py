@@ -124,7 +124,7 @@ class EncoderLayer(nn.Module):
         self.norm2 = nn.LayerNorm(d_model)
 
     def forward(self, x, mask=None):
-        x = self.norm1(x + self.attn(x, mask))
+        x = self.norm1(x + self.attn(x, x, x, mask))
         x = self.norm2(x + self.ff(x))
         return x
 
