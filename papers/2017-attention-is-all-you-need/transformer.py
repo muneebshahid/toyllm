@@ -106,8 +106,8 @@ class PositionalEncoding(nn.Module):
         div_term = torch.exp(
             torch.arange(0, d_model, 2) * -(torch.log(torch.tensor(10000.0)) / d_model)
         )
-        pe[:, 0::2] = torch.sin(position * div_term)  # even indices
-        pe[:, 1::2] = torch.cos(position * div_term)  # odd indices
+        pe[:, 0::2] = torch.sin(position * div_term)  # even dims
+        pe[:, 1::2] = torch.cos(position * div_term)  # odd dims
         pe = pe.unsqueeze(0)
         self.register_buffer("pe", pe)
 
@@ -167,7 +167,7 @@ class TransformerDecoder(nn.Module):
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_enc = PositionalEncoding(d_model, max_len)
         self.layers = []
-        self.norm == nn.LayerNorm(d_model)
+        self.norm = nn.LayerNorm(d_model)
         self.out_proj = nn.Linear(d_model, vocab_size)
 
     def forward(self, tgt, enc_out, tgt_mask=None, src_mask=None):
