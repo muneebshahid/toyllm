@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 
 logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logging.basicConfig(format="%(levelname)s - %(message)s")
 
 
 class MultiHeadAttention(nn.Module):
@@ -19,7 +21,8 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.Linear(d_model, d_model)  # Value transformation
         self.W_o = nn.Linear(d_model, d_model)  # Output transformation
 
-    def split_heads(self, batch_size, seq_len, tensor) -> torch.tensor:
+    def _split_heads(self, tensor) -> torch.tensor:
+        batch_size, seq_len, _ = tensor.shape
         return tensor.view(
             batch_size, seq_len, self.num_heads, self.head_dim
         ).transpose(1, 2)
@@ -30,17 +33,23 @@ class MultiHeadAttention(nn.Module):
         k = self.W_k(x)  # k.shape (batch_size, seq_len, d_model)
         v = self.W_v(x)  # v.shape (batch_size, seq_len, d_model)
 
-        q = self.split_heads(
-            batch_size, seq_len, q
-        )  # q.shape (batch_size, num_heads, seq_len, head_dim)
-        k = self.split_heads(
-            batch_size, seq_len, k
-        )  # k.shape (batch_size, num_heads, seq_len, head_dim)
-        v = self.split_heads(
-            batch_size, seq_len, v
-        )  # v.shape (batch_size, num_heads, seq_len, head_dim)
+        q = self._split_heads(q)  # q.shape (batch_size, num_heads, seq_len, head_dim)
+        k = self._split_heads(k)  # k.shape (batch_size, num_heads, seq_len, head_dim)
+        v = self._split_heads(v)  # v.shape (batch_size, num_heads, seq_len, head_dim)
 
-        qk = q @ k.transpose(-2, -1)
+        # qk.shape (batch_size, num_heads, seq_len, seq_len)
+        qk = (q @ k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim))
+        mask = torch.tril(torch.ones(seq_len, seq_len)).unsqueeze(0).unsqueeze(0)
+        qk = qk.masked_fill(mask == 0, float("-inf"))
+        attn_w = torch.softmax(qk, dim=-1)
+        attn_o = attn_w @ v  # attn_o.shape (batch_size, num_heads, seq_len, head_dim)
+
+        # attn_c.shape (batch_size, num_heads, d_model)
+        attn_c = (
+            attn_o.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
+        )
+
+        attn_o = self.W_o(attn_c)
 
 
 if __name__ == "__main__":
