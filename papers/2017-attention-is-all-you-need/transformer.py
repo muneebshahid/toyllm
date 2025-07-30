@@ -187,13 +187,24 @@ class Transformer(nn.module):
         num_heads: int,
         num_layers: int,
         d_ff: int,
+        max_len=512,
     ):
         super().__init__()
         self.encoder = TransformerEncoder(
-            src_vocab_size, d_model, num_heads, d_ff, num_layers
+            src_vocab_size,
+            d_model,
+            num_heads,
+            d_ff,
+            num_layers,
+            max_len,
         )
         self.decoder = TransformerDecoder(
-            src_vocab_size, d_model, num_heads, d_ff, num_layers
+            tgt_vocab_size,
+            d_model,
+            num_heads,
+            d_ff,
+            num_layers,
+            max_len,
         )
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None):
