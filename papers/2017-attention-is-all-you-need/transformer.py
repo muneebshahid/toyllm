@@ -56,6 +56,7 @@ class MultiHeadAttention(nn.Module):
     ) -> torch.tensor:
         """
         input shape q, k, v: (batch_size, seq_len, d_model)
+        output shape y: (batch_size, seq_len, d_model)
         """
         q = self.W_q(q)  # q.shape (batch_size, seq_len, d_model)
         k = self.W_k(k)  # k.shape (batch_size, seq_len, d_model)
@@ -70,7 +71,8 @@ class MultiHeadAttention(nn.Module):
         # combined_heads.shape (batch_size, num_heads, d_model)
         combined_heads = self._combine_heads(attn_output)
 
-        return self.W_o(combined_heads)
+        y = self.W_o(combined_heads)
+        return y
 
 
 if __name__ == "__main__":
