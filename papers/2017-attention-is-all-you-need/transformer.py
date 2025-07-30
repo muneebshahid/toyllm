@@ -109,8 +109,40 @@ class TransformerEncoder(nn.Module):
         max_len=512,
     ):
         self.embed = nn.Embedding(vocab_size, d_model)
+        self.pos_enc = PositionalEncoding(d_model, max_len)
+        self.layers = []
+        self.norm = nn.LayerNorm(d_model)
 
-    # def
+    def forward(self, x, mask=None):
+        x = self.embed(x)
+        x = self.pos_enc(x)
+        for layer in self.layers:
+            x = layer(x, mask)
+        return self.norm(x)
+
+
+class TransformerDecoder(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        d_model: int,
+        num_heads: int,
+        d_ff: int,
+        num_layers: int,
+        max_len=512,
+    ):
+        self.embed = nn.Embedding(vocab_size, d_model)
+        self.pos_enc = PositionalEncoding(d_model, max_len)
+        self.layers = []
+        self.norm == nn.LayerNorm(d_model)
+        self.out_proj = nn.Linear(d_model, vocab_size)
+
+    def forward(self, tgt, enc_out, tgt_mask=None, src_mask=None):
+        x = self.embed(tgt)
+        x = self.pos_enc(x)
+        for layer in self.layers:
+            x = layer(x, enc_out, tgt_mask, src_mask)
+        return self.out_proj(self.norm(x))
 
 
 class Transformer(nn.module):
@@ -124,7 +156,16 @@ class Transformer(nn.module):
         d_ff: int,
     ):
         super().__init__()
-        self.encoder_embedding = nn.Embedding
+        self.encoder = TransformerEncoder(
+            src_vocab_size, d_model, num_heads, d_ff, num_layers
+        )
+        self.decoder = TransformerDecoder(
+            src_vocab_size, d_model, num_heads, d_ff, num_layers
+        )
+
+    def forward(self, src, tgt, src_mask=None, tgt_mask=None):
+        enc_out = self.encoder(src, src_mask)
+        return self.decoder(tgt, enc_out, tgt_mask, src_mask)
 
 
 if __name__ == "__main__":
