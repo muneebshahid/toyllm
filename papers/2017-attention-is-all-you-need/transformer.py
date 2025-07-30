@@ -17,4 +17,3 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, x, mask=None):
         B, T, C = x.size()
-        
