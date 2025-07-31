@@ -38,21 +38,30 @@ class MultiHeadAttention(nn.Module):
         )
 
     def _scaled_dot_product(
-        self, q: torch.tensor, k: torch.tensor, v: torch.tensor
+        self, q: torch.tensor, k: torch.tensor, v: torch.tensor, mask=None
     ) -> torch.tensor:
         """
         input shape q, k, v: (batch_size, num_heads, seq_len, head_dim)
         output shape: (batch_size, num_heads, seq_len, head_dim)
         """
         # qk shape (batch_size, num_heads, seq_len, seq_len)
-        qk = (q @ k.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim))
-        mask = torch.tril(torch.ones(seq_len, seq_len)).unsqueeze(0).unsqueeze(0)
-        qk = qk.masked_fill(mask == 0, float("-inf"))
+        qk = (q @ k.transpose(-2, -1)) / torch.sqrt(
+            torch.tensor(self.head_dim, dtype=torch.float32)
+        )
+
+        if mask is not None:
+            # Expand mask for num_heads dimension if needed
+            if mask.dim() == 2:
+                mask = mask.unsqueeze(0).unsqueeze(0)
+            elif mask.dim() == 3:
+                mask = mask.unsqueeze(1)
+            qk = qk.masked_fill(mask == 0, float("-inf"))
+
         attn_w = torch.softmax(qk, dim=-1)
         return attn_w @ v
 
     def forward(
-        self, q: torch.tensor, k: torch.tensor, v: torch.tensor
+        self, q: torch.tensor, k: torch.tensor, v: torch.tensor, mask=None
     ) -> torch.tensor:
         """
         input shape q, k, v: (batch_size, seq_len, d_model)
@@ -66,7 +75,7 @@ class MultiHeadAttention(nn.Module):
         k = self._split_heads(k)  # k.shape (batch_size, num_heads, seq_len, head_dim)
         v = self._split_heads(v)  # v.shape (batch_size, num_heads, seq_len, head_dim)
 
-        attn_output = self._scaled_dot_product(q, k, v)
+        attn_output = self._scaled_dot_product(q, k, v, mask)
 
         # combined_heads.shape (batch_size, num_heads, d_model)
         combined_heads = self._combine_heads(attn_output)
@@ -132,6 +141,7 @@ class EncoderLayer(nn.Module):
 
 class DecoderLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout):
+        super().__init__()
         self.self_attn = MultiHeadAttention(d_model, num_heads)
         self.cross_attn = MultiHeadAttention(d_model, num_heads)
         self.ff = Feedforward(d_model, d_ff)
@@ -164,7 +174,7 @@ class TransformerEncoder(nn.Module):
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_enc = PositionalEncoding(d_model, max_len)
         self.layers = nn.ModuleList(
-            [EncoderLayer(d_model, num_heads, d_ff) for _ in num_layers]
+            [EncoderLayer(d_model, num_heads, d_ff, dropout) for _ in range(num_layers)]
         )
         self.norm = nn.LayerNorm(d_model)
 
@@ -184,13 +194,14 @@ class TransformerDecoder(nn.Module):
         num_heads: int,
         d_ff: int,
         num_layers: int,
+        dropout: float,
         max_len=512,
     ):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, d_model)
         self.pos_enc = PositionalEncoding(d_model, max_len)
         self.layers = nn.ModuleList(
-            [DecoderLayer(d_model, num_heads, d_ff) for _ in num_layers]
+            [DecoderLayer(d_model, num_heads, d_ff, dropout) for _ in range(num_layers)]
         )
         self.norm = nn.LayerNorm(d_model)
         self.out_proj = nn.Linear(d_model, vocab_size)
@@ -203,7 +214,7 @@ class TransformerDecoder(nn.Module):
         return self.out_proj(self.norm(x))
 
 
-class Transformer(nn.module):
+class Transformer(nn.Module):
     def __init__(
         self,
         src_vocab_size: int,
@@ -235,4 +246,5 @@ if __name__ == "__main__":
     seq_len = 4
     mh = MultiHeadAttention(d_model, num_heads)
     x = torch.randn(2, seq_len, d_model)
-    mh.forward(x)
+    output = mh.forward(x, x, x)
+    logger.info(f"Output shape: {output.shape}")
