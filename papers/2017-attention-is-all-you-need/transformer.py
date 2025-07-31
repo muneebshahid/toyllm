@@ -8,6 +8,58 @@ logger.setLevel(logging.INFO)
 logging.basicConfig(format="%(levelname)s - %(message)s")
 
 
+def generate_padding_mask(seq, pad_idx=0):
+    """Generate padding mask for sequences.
+
+    Args:
+        seq: Input sequence tensor of shape (batch_size, seq_len)
+        pad_idx: Padding token index (default: 0)
+
+    Returns:
+        Mask of shape (batch_size, 1, 1, seq_len) where 1 = valid, 0 = padding
+    """
+    return (seq != pad_idx).unsqueeze(1).unsqueeze(2)
+
+
+def generate_causal_mask(seq_len, device=None):
+    """Generate causal mask to prevent attending to future positions.
+
+    Args:
+        seq_len: Sequence length
+        device: Device to create mask on
+
+    Returns:
+        Mask of shape (1, 1, seq_len, seq_len) where 1 = can attend, 0 = cannot
+    """
+    mask = torch.tril(torch.ones(seq_len, seq_len, device=device))
+    return mask.unsqueeze(0).unsqueeze(0)
+
+
+def generate_decoder_mask(tgt_seq, pad_idx=0):
+    """Generate combined causal and padding mask for decoder.
+
+    Args:
+        tgt_seq: Target sequence tensor of shape (batch_size, seq_len)
+        pad_idx: Padding token index (default: 0)
+
+    Returns:
+        Combined mask of shape (batch_size, 1, seq_len, seq_len)
+    """
+    seq_len = tgt_seq.size(1)
+
+    # Padding mask: (batch_size, 1, 1, seq_len)
+    padding_mask = generate_padding_mask(tgt_seq, pad_idx)
+
+    # Causal mask: (1, 1, seq_len, seq_len)
+    causal_mask = generate_causal_mask(seq_len, tgt_seq.device)
+
+    # Combine masks: both must be 1 for position to be valid
+    # Broadcasting will handle the shape differences
+    combined_mask = padding_mask * causal_mask
+
+    return combined_mask
+
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int):
         super().__init__()
@@ -241,10 +293,39 @@ class Transformer(nn.Module):
 
 if __name__ == "__main__":
     logger.info("Running Transformer")
-    d_model = 6
-    num_heads = 2
-    seq_len = 4
-    mh = MultiHeadAttention(d_model, num_heads)
-    x = torch.randn(2, seq_len, d_model)
-    output = mh.forward(x, x, x)
-    logger.info(f"Output shape: {output.shape}")
+
+    # Test MultiHeadAttention
+    d_model = 512
+    num_heads = 8
+    seq_len = 10
+    batch_size = 2
+
+    # Example: Create sample sequences with padding (0 = padding token)
+    src_seq = torch.tensor(
+        [[1, 2, 3, 4, 5, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 7, 0, 0, 0]]
+    )
+    tgt_seq = torch.tensor(
+        [[1, 2, 3, 4, 0, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 0, 0, 0, 0]]
+    )
+
+    # Generate masks
+    src_mask = generate_padding_mask(src_seq)
+    tgt_mask = generate_decoder_mask(tgt_seq)
+
+    logger.info(f"Source mask shape: {src_mask.shape}")
+    logger.info(f"Target mask shape: {tgt_mask.shape}")
+
+    # Example transformer usage
+    transformer = Transformer(
+        src_vocab_size=1000,
+        tgt_vocab_size=1000,
+        d_model=d_model,
+        num_heads=num_heads,
+        num_layers=6,
+        d_ff=2048,
+        dropout=0.1,
+    )
+
+    # Forward pass with masks
+    output = transformer(src_seq, tgt_seq, src_mask, tgt_mask)
+    logger.info(f"Transformer output shape: {output.shape}")
