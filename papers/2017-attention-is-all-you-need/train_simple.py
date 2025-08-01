@@ -161,7 +161,7 @@ def generate_translation(
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("mps" if torch.mps.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Create tokenizers - using a small pre-trained model for demonstration
