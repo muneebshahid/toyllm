@@ -4,7 +4,7 @@
 
 **GPT**: Uses only the **decoder** part (not encoder!) with causal masking. Goal: Predict next token given previous tokens.
 
-**Original Transformer** (what you have): Encoder-decoder architecture. Goal: Transform one sequence into another (e.g., English → French translation).
+**Original Transformer**: Encoder-decoder architecture. Goal: Transform one sequence into another (e.g., English → French translation).
 
 ## The Big Picture
 
