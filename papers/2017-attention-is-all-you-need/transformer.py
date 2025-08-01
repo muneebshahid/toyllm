@@ -173,6 +173,10 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
+        """
+        input dimension x: (batch_size, seq_len, d_model)
+        output dimension: (batch_size, seq_len, d_model)
+        """
         return x + self.pe[:, : x.size(1)]
 
 
@@ -186,6 +190,11 @@ class EncoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
+        """
+        input dimension x: (batch_size, seq_len, d_model)
+        input dimension mask: (batch_size, 1, 1, seq_len) or None
+        output dimension: (batch_size, seq_len, d_model)
+        """
         x = self.norm1(x + self.dropout(self.attn(x, x, x, mask)))
         x = self.norm2(x + self.dropout(self.ff(x)))
         return x
@@ -203,6 +212,13 @@ class DecoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, enc_output, tgt_mask=None, src_mask=None):
+        """
+        input dimension x: (batch_size, tgt_seq_len, d_model)
+        input dimension enc_output: (batch_size, src_seq_len, d_model)
+        input dimension tgt_mask: (batch_size, 1, tgt_seq_len, tgt_seq_len) or None
+        input dimension src_mask: (batch_size, 1, 1, src_seq_len) or None
+        output dimension: (batch_size, tgt_seq_len, d_model)
+        """
         x = self.norm1(x + self.dropout(self.self_attn(x, x, x, tgt_mask)))
         x = self.norm2(
             x + self.dropout(self.cross_attn(x, enc_output, enc_output, src_mask))
@@ -231,6 +247,11 @@ class TransformerEncoder(nn.Module):
         self.norm = nn.LayerNorm(d_model)
 
     def forward(self, x, mask=None):
+        """
+        input dimension x: (batch_size, seq_len) - token indices
+        input dimension mask: (batch_size, 1, 1, seq_len) or None
+        output dimension: (batch_size, seq_len, d_model)
+        """
         x = self.embed(x)
         x = self.pos_enc(x)
         for layer in self.layers:
@@ -259,6 +280,13 @@ class TransformerDecoder(nn.Module):
         self.out_proj = nn.Linear(d_model, vocab_size)
 
     def forward(self, tgt, enc_out, tgt_mask=None, src_mask=None):
+        """
+        input dimension tgt: (batch_size, tgt_seq_len) - token indices
+        input dimension enc_out: (batch_size, src_seq_len, d_model)
+        input dimension tgt_mask: (batch_size, 1, tgt_seq_len, tgt_seq_len) or None
+        input dimension src_mask: (batch_size, 1, 1, src_seq_len) or None
+        output dimension: (batch_size, tgt_seq_len, vocab_size)
+        """
         x = self.embed(tgt)
         x = self.pos_enc(x)
         for layer in self.layers:
@@ -287,45 +315,12 @@ class Transformer(nn.Module):
         )
 
     def forward(self, src, tgt, src_mask=None, tgt_mask=None):
+        """
+        input dimension src: (batch_size, src_seq_len) - source token indices
+        input dimension tgt: (batch_size, tgt_seq_len) - target token indices
+        input dimension src_mask: (batch_size, 1, 1, src_seq_len) or None
+        input dimension tgt_mask: (batch_size, 1, tgt_seq_len, tgt_seq_len) or None
+        output dimension: (batch_size, tgt_seq_len, tgt_vocab_size)
+        """
         enc_out = self.encoder(src, src_mask)
         return self.decoder(tgt, enc_out, tgt_mask, src_mask)
-
-
-if __name__ == "__main__":
-    logger.info("Running Transformer")
-
-    # Test MultiHeadAttention
-    d_model = 512
-    num_heads = 8
-    seq_len = 10
-    batch_size = 2
-
-    # Example: Create sample sequences with padding (0 = padding token)
-    src_seq = torch.tensor(
-        [[1, 2, 3, 4, 5, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 7, 0, 0, 0]]
-    )
-    tgt_seq = torch.tensor(
-        [[1, 2, 3, 4, 0, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 0, 0, 0, 0]]
-    )
-
-    # Generate masks
-    src_mask = generate_padding_mask(src_seq)
-    tgt_mask = generate_decoder_mask(tgt_seq)
-
-    logger.info(f"Source mask shape: {src_mask.shape}")
-    logger.info(f"Target mask shape: {tgt_mask.shape}")
-
-    # Example transformer usage
-    transformer = Transformer(
-        src_vocab_size=1000,
-        tgt_vocab_size=1000,
-        d_model=d_model,
-        num_heads=num_heads,
-        num_layers=6,
-        d_ff=2048,
-        dropout=0.1,
-    )
-
-    # Forward pass with masks
-    output = transformer(src_seq, tgt_seq, src_mask, tgt_mask)
-    logger.info(f"Transformer output shape: {output.shape}")
